@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>prng/calcFrames.js - Documentation</title>
+
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading"><a href="global.html">Globals</a></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#add32bit">add32bit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#advanceMultipleStates">advanceMultipleStates</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#advancePRNG">advancePRNG</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcFrame">calcFrame</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcGender">calcGender</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcIVs">calcIVs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcOccidental">calcOccidental</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcPID">calcPID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcStates">calcStates</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#multiply32bit">multiply32bit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#split32BitNum">split32BitNum</a></span></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">prng/calcFrames.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const _ = require('lodash');
+const { advanceState, advanceMultipleStates } = require('./gen3.js');
+const { calcOccidental } = require('../utils/calcOccidental.js');
+const { calcGender } = require('../utils/calcGender.js');
+const { calcIVs } = require('../utils/calcIVs.js');
+const { calcPID } = require('../utils/calcPID.js');
+
+/**
+ * Calculates PRNG states for a frame
+ * @param {number} seed An LCRNG state
+ * @param {number} methodNum The method number to use - 1, 2, or 4
+ * @param {boolean} isMethodH Determines if the method is an H method
+ * @return {State} An array of four 16 bit states for PIDs and IVs
+ */
+function calcStates(seed, methodNum, isMethodH) {
+  let currentSeed = seed;
+  const stateAdvances = {
+    1: [0, 1, 2, 3],
+    2: [0, 1, 3, 4],
+    4: [0, 1, 2, 4]
+  };
+
+  if (isMethodH) {
+    const occidental = calcOccidental(currentSeed) - 1;
+    currentSeed = advanceMultipleStates(currentSeed, occidental);
+  }
+
+  return _.reduce(_.range(0, 5), (result, value, index) => {
+    if (_.includes(stateAdvances[methodNum], index)) {
+      const state = currentSeed >>> 16;
+
+      result.push(state);
+    }
+
+    currentSeed = advanceState(currentSeed);
+    return result;
+  }, []);
+}
+
+/**
+ * Calculates a Method 1, 2, or 4 frame
+ * @param {number} seed An LCRNG state
+ * @param {number} methodNum The method number to use - 1, 2, or 4
+ * @param {boolean} isMethodH Determines if the method is an H method
+ * @return {Frame} The Method 1 frame result
+ */
+function calcFrame(seed, methodNum, isMethodH) {
+  const [pidl, pidh, ivs1, ivs2] = calcStates(seed, methodNum, isMethodH);
+  const pid = calcPID(pidl, pidh);
+
+  return {
+    pid: _.padStart(pid.toString(16).toUpperCase(), 8, '0'),
+    nature: pid % 25,
+    psv: (pidl ^ pidh) >>> 3,
+    ivs: calcIVs(ivs1, ivs2),
+    ability: pid &amp; 1,
+    gender: calcGender(pid)
+  };
+}
+
+module.exports = { calcFrame };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<br class="clear">
+
+<footer>
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun Mar 25 2018 18:41:43 GMT-0500 (CDT) using the Minami theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
+</body>
+</html>

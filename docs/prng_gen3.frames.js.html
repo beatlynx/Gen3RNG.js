@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>prng/gen3.frames.js - Documentation</title>
+
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading"><a href="global.html">Globals</a></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#add32bit">add32bit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#advanceLCRNG">advanceLCRNG</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#advanceMultipleStates">advanceMultipleStates</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#advanceState">advanceState</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcFrame">calcFrame</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcFrames">calcFrames</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcGender">calcGender</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcIVs">calcIVs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcOccidental">calcOccidental</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcPID">calcPID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#calcStates">calcStates</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#multiply32bit">multiply32bit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#split32BitNum">split32BitNum</a></span></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">prng/gen3.frames.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const _ = require('lodash');
+const { advanceState, advanceMultipleStates } = require('./gen3.prng.js');
+const { calcOccidental } = require('../utils/calcOccidental.js');
+const { calcGender } = require('../utils/calcGender.js');
+const { calcIVs } = require('../utils/calcIVs.js');
+const { calcPID } = require('../utils/calcPID.js');
+
+/**
+ * @typedef {Object} Frame
+ * @property {string} pid A Pokemon's PID as a 32 bit hex string
+ * @property {number} nature A Pokemon's nature
+ * @property {number} psv A Pokemon's shiny value
+ * @property {IVValues} ivs A Pokemon's IVs
+ * @property {number} ability A Pokemon's ability
+ * @property {number} gender A Pokemon's gender
+ */
+
+/**
+ * @typedef {Array} State
+ * @property {number} pid1 The first PID state
+ * @property {number} pid2 The second PID state
+ * @property {number} ivs1 The first IV state
+ * @property {number} ivs2 The second IV state
+*/
+
+/**
+ * Calculates PRNG states for a frame
+ * @param {number} seed An LCRNG state
+ * @param {number} methodNum The method number to use - 1, 2, or 4
+ * @param {boolean} isMethodH Determines if the method is an H method
+ * @return {State} An array of four 16 bit states for PIDs and IVs
+ */
+function calcStates(seed, methodNum, isMethodH) {
+  let currentSeed = seed;
+  const stateAdvances = {
+    1: [0, 1, 2, 3],
+    2: [0, 1, 3, 4],
+    4: [0, 1, 2, 4]
+  };
+
+  if (isMethodH) {
+    const occidental = calcOccidental(currentSeed) - 1;
+    currentSeed = advanceMultipleStates(currentSeed, occidental);
+  }
+
+  return _.reduce(_.range(0, 5), (result, value, index) => {
+    if (_.includes(stateAdvances[methodNum], index)) {
+      const state = currentSeed >>> 16;
+
+      result.push(state);
+    }
+
+    currentSeed = advanceState(currentSeed);
+    return result;
+  }, []);
+}
+
+/**
+ * Calculates a Method 1, 2, or 4 frame
+ * @param {number} seed An LCRNG state
+ * @param {number} methodNum The method number to use - 1, 2, or 4
+ * @param {boolean} isMethodH Determines if the method is an H method
+ * @return {Frame} The frame result
+ */
+function calcFrame(seed, methodNum, isMethodH) {
+  const [pidl, pidh, ivs1, ivs2] = calcStates(seed, methodNum, isMethodH);
+  const pid = calcPID(pidl, pidh);
+
+  return {
+    pid: _.padStart(pid.toString(16).toUpperCase(), 8, '0'),
+    nature: pid % 25,
+    psv: (pidl ^ pidh) >>> 3,
+    ivs: calcIVs(ivs1, ivs2),
+    ability: pid &amp; 1,
+    gender: calcGender(pid)
+  };
+}
+
+/**
+ * Calculates multiple Method 1, 2, or 4 frames
+ * @param {number} seed An LCRNG state
+ * @param {number} methodNum The method number to use - 1, 2, or 4
+ * @param {boolean} isMethodH Determines if the method is an H method
+ * @param {number} length The number of frames to calculate
+ * @return {Array&lt;Frame>} The frame results
+ */
+function calcFrames(seed, methodNum, isMethodH, length) {
+  let currentSeed = seed;
+
+  return _.map(_.range(0, length), (value) => {
+    const frame = _.assign({ frame: value + 1 }, calcFrame(currentSeed, methodNum, isMethodH));
+
+    currentSeed = advanceState(currentSeed);
+    return frame;
+  });
+}
+
+module.exports = { calcFrame, calcFrames };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<br class="clear">
+
+<footer>
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sun Mar 25 2018 19:19:41 GMT-0500 (CDT) using the Minami theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
+</body>
+</html>
